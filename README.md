@@ -1,7 +1,7 @@
 # ModBot-TG
 A Telegram bot written in Go that tracks message counts, rewards points based on activity, and allows users to redeem bonuses from the shop.
 
-**Note:** For better performance, make sure to promote the bot to an admin.
+**Note:** For better performance, make sure to promote the bot to an admin. And bot ONLY works in group.
 
 ## WIP
 This bot is still in development—features and functionality might change over time.
