@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS "boosts" (
+	"id" INTEGER PRIMARY KEY AUTOINCREMENT,
+	"user_id" INTEGER NOT NULL,
+	"chat_id" INTEGER NOT NULL,
+	"boost_type" TEXT NOT NULL,
+	"expires_at" TIMESTAMP NOT NULL
+);
+

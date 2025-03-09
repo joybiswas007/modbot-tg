@@ -1,0 +1,14 @@
+bot:
+  db: "modbot.db"
+  token: "bot_token_from_bot_father" 
+  point:
+    photo: 1
+    document: 1
+    animation: 1
+    audio: 1
+    sticker: 1
+    # users will get point between 1 to 5 randomly for sending text
+    text:
+      min: 1
+      max: 5
+  deleteCommand: true #delete users command after it was issued to avoid spam
