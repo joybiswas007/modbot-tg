@@ -14,6 +14,46 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Error messages separated for easy modification
+const (
+	ErrNoStatsFound       = "**No stats found for this user.**"
+	ErrNoRankingsYet      = "*No rankings yet! Try chatting more to earn points.*"
+	ErrNoHistoryFound     = "*No history found for user!*"
+	ErrInvalidGiftAmount  = "Invalid gift amount. It must be a positive number."
+	ErrInvalidUserID      = "Invalid user ID format."
+	ErrGiftToSelf         = "You can't send gift to yourself!"
+	ErrGiftToBot          = "No need to gift to bot"
+	ErrGiftAmountZero     = "Gift amount must be greater than 0."
+	ErrNoPointsToGift     = "**You don’t have enough points to gift!**"
+	ErrUserDoesNotExist   = "User doesn't exist!"
+	ErrGiftProcessingFail = "Failed to process the gift. Please try again later."
+	ErrNoPointsYet        = "**you don’t have any points yet! start chatting to earn some.**"
+	ErrUnknown            = "*Something went wrong!*"
+)
+
+var (
+	// Define a map to store point values for each message type
+	pointMap = map[string]func() float64{
+		"text": func() float64 {
+			min := viper.GetInt("bot.point.text.min")
+			max := viper.GetInt("bot.point.text.max")
+			return float64(randRange(min, max))
+		},
+		"docment":   func() float64 { return viper.GetFloat64("bot.point.document") },
+		"photo":     func() float64 { return viper.GetFloat64("bot.point.photo") },
+		"sticker":   func() float64 { return viper.GetFloat64("bot.point.sticker") },
+		"audio":     func() float64 { return viper.GetFloat64("bot.point.audio") },
+		"animation": func() float64 { return viper.GetFloat64("bot.point.animation") },
+	}
+
+	// pointSources defines different ways users can earn points.
+	pointSources = map[int]string{
+		1: "chatting",
+		2: "double_coins",
+		3: "gift",
+	}
+)
+
 func (app *application) start(ctx context.Context, b *bot.Bot, update *models.Update) {
 	me, err := b.GetMe(ctx)
 	if err != nil {
@@ -77,46 +117,6 @@ _Use these commands to track your activity and rankings!_`
 
 	sendMessage(ctx, b, chatID, msgId, helpMessage, true, deleteCmd)
 }
-
-// Error messages separated for easy modification
-const (
-	ErrNoStatsFound       = "**No stats found for this user.**"
-	ErrNoRankingsYet      = "*No rankings yet! Try chatting more to earn points.*"
-	ErrNoHistoryFound     = "*No history found for user!*"
-	ErrInvalidGiftAmount  = "Invalid gift amount. It must be a positive number."
-	ErrInvalidUserID      = "Invalid user ID format."
-	ErrGiftToSelf         = "You can't send gift to yourself!"
-	ErrGiftToBot          = "No need to gift to bot"
-	ErrGiftAmountZero     = "Gift amount must be greater than 0."
-	ErrNoPointsToGift     = "**You don’t have enough points to gift!**"
-	ErrUserDoesNotExist   = "User doesn't exist!"
-	ErrGiftProcessingFail = "Failed to process the gift. Please try again later."
-	ErrNoPointsYet        = "**you don’t have any points yet! start chatting to earn some.**"
-	ErrUnknown            = "*Something went wrong!*"
-)
-
-var (
-	// Define a map to store point values for each message type
-	pointMap = map[string]func() float64{
-		"text": func() float64 {
-			min := viper.GetInt("bot.point.text.min")
-			max := viper.GetInt("bot.point.text.max")
-			return float64(randRange(min, max))
-		},
-		"docment":   func() float64 { return viper.GetFloat64("bot.point.document") },
-		"photo":     func() float64 { return viper.GetFloat64("bot.point.photo") },
-		"sticker":   func() float64 { return viper.GetFloat64("bot.point.sticker") },
-		"audio":     func() float64 { return viper.GetFloat64("bot.point.audio") },
-		"animation": func() float64 { return viper.GetFloat64("bot.point.animation") },
-	}
-
-	// pointSources defines different ways users can earn points.
-	pointSources = map[int]string{
-		1: "chatting",
-		2: "double_coins",
-		3: "gift",
-	}
-)
 
 // countMessage handles the logic for counting points based on message type
 func (app *application) countMessage(ctx context.Context, b *bot.Bot, update *models.Update) {
