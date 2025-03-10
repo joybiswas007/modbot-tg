@@ -18,6 +18,7 @@ type Models struct {
 	Users  UserModel
 	Points PointModel
 	Gifts  GiftModel
+	Shop   ItemModel
 }
 
 func New() *sql.DB {
@@ -47,6 +48,7 @@ func NewModels(db *sql.DB) Models {
 		Users:  UserModel{DB: db},
 		Points: PointModel{DB: db},
 		Gifts:  GiftModel{DB: db},
+		Shop:   ItemModel{DB: db},
 	}
 }
 
@@ -83,6 +85,7 @@ func Migrate(db *sql.DB) error {
 			if err != nil && err != migrate.ErrNoChange {
 				return fmt.Errorf("migration failed after fixing dirty state: %v", err)
 			}
+			return nil
 		}
 		return fmt.Errorf("migration failed: %v", err)
 	}

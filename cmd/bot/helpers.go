@@ -77,9 +77,9 @@ func formatUserDetails(firstName, username string, user *database.User) string {
 	var sb strings.Builder
 
 	// Format the message
-	sb.WriteString(fmt.Sprintf("*Stats of %s*\n", displayName(firstName, username)))
-	sb.WriteString(fmt.Sprintf("- *Total Points:* `%.2f`\n", user.Points))
-	sb.WriteString(fmt.Sprintf("- *Last Activity:* `%s`\n", user.UpdatedAt.Format("2006-01-02 15:04:05")))
+	sb.WriteString(fmt.Sprintf("**Stats of %s**\n", displayName(firstName, username)))
+	sb.WriteString(fmt.Sprintf("- **Total Points:** `%.2f`\n", user.Points))
+	sb.WriteString(fmt.Sprintf("- **Last Activity:** `%s`\n", user.UpdatedAt.Format("2006-01-02 15:04:05")))
 
 	return sb.String()
 }
@@ -135,7 +135,7 @@ func formatHistory(chatUser *models.User, history []database.Point, limit int) s
 			symbol = "➖" // Change symbol if points were lost
 		}
 
-		msg.WriteString(fmt.Sprintf("🕒 *%s* - %s *%.2f points* (%s)\n", timeFormatted, symbol, entry.Amount, entry.Source))
+		msg.WriteString(fmt.Sprintf("🕒 %s %s %.2f points (%s)\n", timeFormatted, symbol, entry.Amount, entry.Source))
 	}
 
 	return msg.String()
@@ -182,4 +182,56 @@ func checkBotPermission(botID int64, admins []models.ChatMember) *models.ChatMem
 	}
 	// Return an nil if the bot is not found in the admin list
 	return nil
+}
+
+// formatShopItems generates a formatted list of shop items
+// It loops through a slice of items and constructs a structured message using strings.Builder.
+func formatShopItems(items []database.Item) string {
+	var msg strings.Builder
+	msg.WriteString("**🛍️ Available Items in the Shop:**\n\n")
+
+	for _, item := range items {
+		msg.WriteString(fmt.Sprintf(
+			"📦 **%s**\n"+
+				"🆔 **ID:** `%d`\n"+
+				"📜 **Description:** %s\n"+
+				"💰 **Price:** %.2f points\n"+
+				"⏳ **Duration:** %s\n\n",
+			item.Name,
+			item.ID,
+			item.Description,
+			item.Price,
+			formatDuration(item.Duration),
+		))
+	}
+
+	return msg.String()
+}
+
+// formatDuration converts an item's duration (in hours) into a readable string format.
+// If the duration is 0, it returns "Permanent"; otherwise, it returns the duration in hours.
+func formatDuration(hours int) string {
+	if hours == 0 {
+		return "Permanent" // Indicates the item has no expiration
+	}
+	return fmt.Sprintf("%d hour(s)", hours) // Returns the duration in hours
+}
+
+// calculateLuckyBonus calculates a random bonus between 10% and 50% of the points
+func calculateLuckyBonus(points float64) float64 {
+	bonusPercentage := 10 + rand.IntN(41)
+
+	bonus := points * float64(bonusPercentage) / 100
+	return bonus
+}
+
+// formatBoost format the boosts in markdown format
+func formatBoost(boost *database.Boost) string {
+	var msg strings.Builder
+	msg.WriteString("🔥 *Your Active Boost:*\n\n")
+
+	expiry := boost.ExpiresAt.Format("2006-01-02 15:04:05")
+	msg.WriteString(fmt.Sprintf("🔹 *%s* (Expires: `%s`)\n", boost.Type, expiry))
+
+	return msg.String()
 }

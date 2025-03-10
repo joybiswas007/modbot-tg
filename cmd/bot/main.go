@@ -55,9 +55,12 @@ func main() {
 
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/rank", bot.MatchTypePrefix, ensureGroupChat(app.topUsers))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/gift", bot.MatchTypePrefix, ensureGroupChat(app.gift))
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/buy", bot.MatchTypePrefix, ensureGroupChat(app.buyItem))
+
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/stats", bot.MatchTypeExact, ensureGroupChat(app.userStats))
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/shop", bot.MatchTypeExact, ensureGroupChat(app.shop))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/history", bot.MatchTypeExact, ensureGroupChat(adminMiddleware(app.pointHistory)))
-	// b.RegisterHandler(bot.HandlerTypeMessageText, "/shop", bot.MatchTypeExact, ensureGroupChat(app.shop))
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/boost", bot.MatchTypeExact, ensureGroupChat(app.boost))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, app.start)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/id", bot.MatchTypeExact, app.getID)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/help", bot.MatchTypeExact, app.help)

@@ -14,6 +14,9 @@ This bot is still in development—features and functionality might change over 
 /id - Displays the chat ID and user ID.
 /gift userid amount - gift some of your bp to other users. Example: /gift 1234566 10
 or reply to a user whom you want to send the gift: /gift amount or /gift 10
+/shop - display all the items available in shop
+/boost - display users available boost (User can buy only one boost at a time)
+/buy itemID - buy any item specified by item id
 /stats - Send `/stats` to view your own stats. Reply to another user's message with `/stats` to see their stats.
 /rank type - Displays the leaderboard for a specific period. Available types: `daily`, `weekly`, `monthly`. Example: `/rank daily` to view the daily rankings.
 /history - Shows the last `50` number of messages where the user earned points. (Admin ONLY)
@@ -85,7 +88,7 @@ The more active a user is, the more points they earn, which can be used to redee
 ### TODO
 
 #### 🚀 Upcoming Features
-- [ ] **Buy Boost** - Users can purchase temporary boosts to earn extra points.
+- ~~[ ] **Buy Boost** - Users can purchase temporary boosts to earn extra points.~~
 - [ ] **Gift Boost** - Users can gift boost benefits to other members.
 - [ ] **Bonus Pool** - A shared pool where users contribute points, later distributed as rewards.
 - [ ] **Global Double Bonus Event** - A special event where all point earnings are doubled for a limited time.

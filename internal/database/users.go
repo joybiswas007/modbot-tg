@@ -24,11 +24,13 @@ type User struct {
 
 // Boost represents a temporary boost effect for a user, such as double coins.
 type Boost struct {
-	ID        int64     // Unique boost ID
-	UserID    int64     // ID of the user receiving the boost
-	ChatID    int64     // Chat ID where the boost is applied
-	Type      string    // Type of boost (e.g., "double_coins")
-	ExpiresAt time.Time // Expiration timestamp of the boost
+	ID          int64     // Unique boost ID
+	UserID      int64     // ID of the user receiving the boost
+	ChatID      int64     // Chat ID where the boost is applied
+	ItemID      int64     // Item ID represent the item user bought
+	Type        string    // Type of boost (e.g., "double_coins")
+	PurchasedAt time.Time // Time of purchase
+	ExpiresAt   time.Time // Expiration timestamp of the boost
 }
 
 // Get retrieves a user’s data from the database for a specific chat.
@@ -36,7 +38,7 @@ func (u UserModel) Get(chatID, userID int64) (*User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	query := "SELECT * FROM users WHERE chat_id = ? AND user_id = ?"
+	query := `SELECT * FROM users WHERE chat_id = ? AND user_id = ?`
 
 	var user User
 	err := u.DB.QueryRowContext(ctx, query, chatID, userID).Scan(
@@ -134,19 +136,61 @@ func (u UserModel) Leaderboard(chatID int64, topN int) ([]User, error) {
 	return toppers, nil
 }
 
+// GetBoostByItem retrieves a specific boost item for a user in a chat based on itemID.
+func (u UserModel) GetBoostByItem(userID, chatID, itemID int64) (*Boost, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `SELECT id, user_id, chat_id, item_id, boost_type, purchased_at, expires_at 
+	          FROM boosts WHERE user_id = ? AND chat_id = ? AND item_id = ? 
+	          AND expires_at > CURRENT_TIMESTAMP LIMIT 1`
+
+	var boost Boost
+	err := u.DB.QueryRowContext(ctx, query, userID, chatID, itemID).Scan(
+		&boost.ID,
+		&boost.UserID,
+		&boost.ChatID,
+		&boost.ItemID,
+		&boost.Type,
+		&boost.PurchasedAt,
+		&boost.ExpiresAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil // No active boost for this item
+		}
+		return nil, err
+	}
+
+	return &boost, nil
+}
+
+// ActiveBoost returns the first active boost for the given user and chat.
 func (u UserModel) ActiveBoost(userID, chatID int64) (*Boost, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	query := `SELECT id, user_id, chat_id, boost_type, expires_at FROM boosts 
+	query := `SELECT id, user_id, chat_id, item_id, boost_type, purchased_at, expires_at 
+	          FROM boosts 
 	          WHERE user_id = ? AND chat_id = ? AND expires_at > CURRENT_TIMESTAMP LIMIT 1`
 
 	var boost Boost
-	err := u.DB.QueryRowContext(ctx, query, userID, chatID).Scan(&boost.ID, &boost.UserID, &boost.ChatID, &boost.Type, &boost.ExpiresAt)
+	err := u.DB.QueryRowContext(ctx, query, userID, chatID).Scan(
+		&boost.ID,
+		&boost.UserID,
+		&boost.ChatID,
+		&boost.ItemID,
+		&boost.Type,
+		&boost.PurchasedAt,
+		&boost.ExpiresAt,
+	)
+
+	// If no active boost is found, return nil
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil // No active boost
-		}
 		return nil, err
 	}
 

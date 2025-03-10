@@ -14,23 +14,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Error messages separated for easy modification
-const (
-	ErrNoStatsFound       = "**No stats found for this user.**"
-	ErrNoRankingsYet      = "*No rankings yet! Try chatting more to earn points.*"
-	ErrNoHistoryFound     = "*No history found for user!*"
-	ErrInvalidGiftAmount  = "Invalid gift amount. It must be a positive number."
-	ErrInvalidUserID      = "Invalid user ID format."
-	ErrGiftToSelf         = "You can't send gift to yourself!"
-	ErrGiftToBot          = "No need to gift to bot"
-	ErrGiftAmountZero     = "Gift amount must be greater than 0."
-	ErrNoPointsToGift     = "**You don’t have enough points to gift!**"
-	ErrUserDoesNotExist   = "User doesn't exist!"
-	ErrGiftProcessingFail = "Failed to process the gift. Please try again later."
-	ErrNoPointsYet        = "**you don’t have any points yet! start chatting to earn some.**"
-	ErrUnknown            = "*Something went wrong!*"
-)
-
 var (
 	// Define a map to store point values for each message type
 	pointMap = map[string]func() float64{
@@ -49,8 +32,11 @@ var (
 	// pointSources defines different ways users can earn points.
 	pointSources = map[int]string{
 		1: "chatting",
-		2: "double_coins",
+		2: "doublePoints",
 		3: "gift",
+		4: "luckyBonus",
+		5: "boughtBoost",
+		6: "penalty",
 	}
 )
 
@@ -107,6 +93,9 @@ func (app *application) help(ctx context.Context, b *bot.Bot, update *models.Upd
 */stats* - Display your overall stats in the chat.
 */gift [userid amount]* - gift points to users.
 */gift [amount]* - reply to user(s) message.
+*/shop* - display all the items available in shop.
+*/boost* - display users avilable boost.
+*/buy [itemid]* - buy any item specified by item id.
 */id* - Display your user ID and the chat ID.
 */help* - Display this help message.
 
@@ -188,10 +177,16 @@ func (app *application) countMessage(ctx context.Context, b *bot.Bot, update *mo
 		return
 	}
 
-	// Double the points if boost is active
-	if boost != nil && boost.Type == "double_coins" {
-		point *= 2
-		p.Source = pointSources[2]
+	if boost != nil {
+		switch boost.Type {
+		case "doublePoints":
+			point *= 2
+			p.Source = pointSources[2]
+		case "luckyBonus":
+			bonus := calculateLuckyBonus(point)
+			point += bonus
+			p.Source = pointSources[4]
+		}
 	}
 
 	err = app.models.Users.Update(chatID, userID, user.Points+point)
@@ -368,7 +363,7 @@ func (app *application) gift(ctx context.Context, b *bot.Bot, update *models.Upd
 		// Convert userID to int64
 		parsedUserID, err := strconv.ParseInt(parts[0], 10, 64)
 		if err != nil {
-			sendMessage(ctx, b, chatID, msgId, ErrInvalidUserID, true, deleteCmd)
+			sendMessage(ctx, b, chatID, msgId, ErrInvalidID, true, deleteCmd)
 			return
 		}
 		receiverID = parsedUserID
@@ -491,4 +486,165 @@ func (app *application) gift(ctx context.Context, b *bot.Bot, update *models.Upd
 	// Send confirmation message
 	msg := fmt.Sprintf("🎁 %d points have been gifted to user %d!", giftAmount, receiverID)
 	sendMessage(ctx, b, chatID, msgId, msg, true, deleteCmd)
+}
+
+// shop display available items
+func (app *application) shop(ctx context.Context, b *bot.Bot, update *models.Update) {
+	msg := update.Message
+	chatID := msg.Chat.ID
+
+	// deleteCmd determines if commands should be deleted after execution
+	deleteCmd := viper.GetBool("bot.deleteCommand")
+
+	items, err := app.models.Shop.Items()
+	if err != nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+		return
+	}
+
+	if items == nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrNoItem, true, deleteCmd)
+		return
+	}
+
+	sendMessage(ctx, b, chatID, msg.ID, formatShopItems(items), true, deleteCmd)
+}
+
+// buy any item specified by item id
+func (app *application) buyItem(ctx context.Context, b *bot.Bot, update *models.Update) {
+	msg := update.Message
+	chatID := msg.Chat.ID
+	userID := msg.From.ID
+
+	// deleteCmd determines if commands should be deleted after execution
+	deleteCmd := viper.GetBool("bot.deleteCommand")
+
+	item := strings.TrimSpace(strings.Replace(update.Message.Text, "/buy", "", 1))
+	parts := strings.Fields(item)
+
+	if len(parts) != 1 {
+		message := "Usage: `/buy item_id`."
+		sendMessage(ctx, b, chatID, msg.ID, message, true, deleteCmd)
+		return
+	}
+
+	buyer, err := app.models.Users.Get(chatID, userID)
+	if err != nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+		return
+	}
+
+	if buyer == nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrNoPointsYet, true, deleteCmd)
+		return
+	}
+
+	// Convert itemID to int64
+	itemID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrInvalidID, true, deleteCmd)
+		return
+	}
+
+	//Check if boost already exist or not
+	// users can buy different type of boost simultaneously but not the same one
+	boost, err := app.models.Users.ActiveBoost(userID, chatID)
+	if err != nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrNoBoost, true, deleteCmd)
+		return
+	}
+
+	// don't let users buy another boost if they already have one
+	if boost != nil {
+		message := fmt.Sprintf("🚫 *You already have an active boost of this type!*\n⏳ *It will expire on `%s`.*\n💡 *Try again after it expires.*",
+			boost.ExpiresAt.Format("2006-01-02 15:04:05"))
+		sendMessage(ctx, b, chatID, msg.ID, message, true, deleteCmd)
+		return
+	}
+
+	itm, err := app.models.Shop.Get(itemID)
+	if err != nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrNoItemFound, true, deleteCmd)
+		return
+	}
+
+	if itm == nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrNoItemFound, true, deleteCmd)
+		return
+	}
+
+	if buyer.Points < itm.Price {
+		sendMessage(ctx, b, chatID, msg.ID, ErrNotEnoughPoints, true, deleteCmd)
+		return
+	}
+
+	//buy the item
+	err = app.models.Shop.Buy(userID, chatID, itm.ID, itm.Type, itm.Duration)
+	if err != nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrBuyingItem, true, deleteCmd)
+		return
+	}
+
+	//after successfully buying the item deduct price from the buyer
+	err = app.models.Users.Update(chatID, userID, buyer.Points-itm.Price)
+	if err != nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrNotEnoughPoints, true, deleteCmd)
+		return
+	}
+
+	//get boost by item id
+	boost, err = app.models.Users.GetBoostByItem(userID, chatID, itm.ID)
+	if err != nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrNoBoost, true, deleteCmd)
+		return
+	}
+
+	if boost == nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrNoBoost, true, deleteCmd)
+		return
+	}
+
+	p := &database.Point{
+		ChatID: chatID,
+		Amount: itm.Price,
+		UserID: userID,
+		Source: pointSources[5],
+		Change: "loss",
+	}
+
+	//update points history
+	err = app.models.Points.Insert(p)
+	if err != nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+		return
+	}
+
+	message := fmt.Sprintf("✅ *Successfully purchased:* `%s`\n"+
+		"⏳ *Expires on:* `%s`",
+		itm.Name, boost.ExpiresAt.Format("2006-01-02 15:04:05"),
+	)
+	sendMessage(ctx, b, chatID, msg.ID, message, true, deleteCmd)
+}
+
+// display all available boost
+func (app *application) boost(ctx context.Context, b *bot.Bot, update *models.Update) {
+	msg := update.Message
+	userID := msg.From.ID
+	chatID := msg.Chat.ID
+
+	// deleteCmd determines if commands should be deleted after execution
+	deleteCmd := viper.GetBool("bot.deleteCommand")
+
+	boost, err := app.models.Users.ActiveBoost(userID, chatID)
+	if err != nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrNoBoost, true, deleteCmd)
+		return
+	}
+
+	if boost == nil {
+		sendMessage(ctx, b, chatID, msg.ID, ErrNoBoost, true, deleteCmd)
+		return
+	}
+
+	sendMessage(ctx, b, chatID, msg.ID, formatBoost(boost), true, deleteCmd)
 }
