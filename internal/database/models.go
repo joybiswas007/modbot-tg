@@ -68,15 +68,22 @@ func Migrate(db *sql.DB) error {
 
 	m, err := migrate.NewWithDatabaseInstance(migrationFilesPath, viper.GetString("bot.db"), driver)
 	if err != nil {
-		if err == migrate.ErrNoChange {
-			log.Println("Nothing to migrate")
-			return nil
-		}
 		return fmt.Errorf("migration initialization failed: %v", err)
 	}
 
 	err = m.Up()
 	if err != nil && err != migrate.ErrNoChange {
+		version, dirty, _ := m.Version()
+		if dirty {
+			log.Printf("Database is in a dirty state at version %d. Forcing reset...", version)
+			_ = m.Force(int(version)) // Reset to last successful version
+
+			//retry migration
+			err = m.Up()
+			if err != nil && err != migrate.ErrNoChange {
+				return fmt.Errorf("migration failed after fixing dirty state: %v", err)
+			}
+		}
 		return fmt.Errorf("migration failed: %v", err)
 	}
 
