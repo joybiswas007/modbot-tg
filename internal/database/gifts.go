@@ -14,12 +14,12 @@ type GiftModel struct {
 
 // Gift represents a gift transaction where a user sends points to another user.
 type Gift struct {
-	ID         int64     `json:"id"`
-	ChatID     int64     `json:"chat_id"`
-	SenderID   int64     `json:"sender_id"`
-	ReceiverID int64     `json:"receiver_id"`
-	Amount     float64   `json:"amount"`
-	Timestamp  time.Time `json:"timestamp"`
+	ID         int64
+	ChatID     int64
+	SenderID   int64
+	ReceiverID int64
+	Amount     float64
+	Timestamp  time.Time
 }
 
 // Insert saves a gift transaction in the database.

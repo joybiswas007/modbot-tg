@@ -24,11 +24,11 @@ type User struct {
 
 // Boost represents a temporary boost effect for a user, such as double coins.
 type Boost struct {
-	ID        int64     `json:"id"`         // Unique boost ID
-	UserID    int64     `json:"user_id"`    // ID of the user receiving the boost
-	ChatID    int64     `json:"chat_id"`    // Chat ID where the boost is applied
-	Type      string    `json:"boost_type"` // Type of boost (e.g., "double_coins")
-	ExpiresAt time.Time `json:"expires_at"` // Expiration timestamp of the boost
+	ID        int64     // Unique boost ID
+	UserID    int64     // ID of the user receiving the boost
+	ChatID    int64     // Chat ID where the boost is applied
+	Type      string    // Type of boost (e.g., "double_coins")
+	ExpiresAt time.Time // Expiration timestamp of the boost
 }
 
 // Get retrieves a user’s data from the database for a specific chat.
