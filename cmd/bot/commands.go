@@ -93,6 +93,8 @@ func (app *application) help(ctx context.Context, b *bot.Bot, update *models.Upd
 */stats* - Display your overall stats in the chat.
 */gift [userid amount]* - gift points to users.
 */gift [amount]* - reply to user(s) message.
+*/seize [userid amount]* - seize users points for rules violation.
+*/seize [amount]* - reply to users message whose points need to be seized.
 */shop* - display all the items available in shop.
 */boost* - display users avilable boost.
 */buy [itemid]* - buy any item specified by item id.
@@ -122,7 +124,7 @@ func (app *application) countMessage(ctx context.Context, b *bot.Bot, update *mo
 	if len(newMembers) != 0 {
 		me, err := b.GetMe(ctx)
 		if err != nil {
-			sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+			sendMessage(ctx, b, chatID, msg.ID, ErrUnknownError, true, deleteCmd)
 			return
 		}
 		for _, user := range newMembers {
@@ -148,7 +150,7 @@ func (app *application) countMessage(ctx context.Context, b *bot.Bot, update *mo
 
 	user, err := app.models.Users.Get(chatID, userID)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrStatsNotFound, true, deleteCmd)
 		return
 	}
 
@@ -156,7 +158,7 @@ func (app *application) countMessage(ctx context.Context, b *bot.Bot, update *mo
 	if user == nil {
 		err = app.models.Users.Insert(chatID, userID, point)
 		if err != nil {
-			sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+			sendMessage(ctx, b, chatID, msg.ID, ErrUpdateUserFailed, true, deleteCmd)
 			return
 		}
 
@@ -165,7 +167,7 @@ func (app *application) countMessage(ctx context.Context, b *bot.Bot, update *mo
 
 		err = app.models.Points.Insert(p)
 		if err != nil {
-			sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+			sendMessage(ctx, b, chatID, msg.ID, ErrAddPointsFailed, true, deleteCmd)
 			return
 		}
 		return
@@ -173,7 +175,7 @@ func (app *application) countMessage(ctx context.Context, b *bot.Bot, update *mo
 
 	boost, err := app.models.Users.ActiveBoost(userID, chatID)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrBoostUnavailable, true, deleteCmd)
 		return
 	}
 
@@ -191,7 +193,7 @@ func (app *application) countMessage(ctx context.Context, b *bot.Bot, update *mo
 
 	err = app.models.Users.Update(chatID, userID, user.Points+point)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrUpdateUserFailed, true, deleteCmd)
 		return
 	}
 
@@ -199,7 +201,7 @@ func (app *application) countMessage(ctx context.Context, b *bot.Bot, update *mo
 
 	err = app.models.Points.Insert(p)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrAddPointsFailed, true, deleteCmd)
 		return
 	}
 }
@@ -224,12 +226,12 @@ func (app *application) userStats(ctx context.Context, b *bot.Bot, update *model
 
 	user, err := app.models.Users.Get(chatID, userID)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msgId, ErrNoStatsFound, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrStatsNotFound, true, deleteCmd)
 		return
 	}
 
 	if user == nil {
-		sendMessage(ctx, b, chatID, msgId, ErrNoStatsFound, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrStatsNotFound, true, deleteCmd)
 		return
 	}
 
@@ -265,11 +267,11 @@ func (app *application) topUsers(ctx context.Context, b *bot.Bot, update *models
 
 	points, err := app.models.Points.Ranking(chatID, rankingLimit, rankType)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msgId, ErrNoRankingsYet, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrNoRankingsAvailable, true, deleteCmd)
 		return
 	}
 	if points == nil {
-		sendMessage(ctx, b, chatID, msgId, ErrNoRankingsYet, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrNoRankingsAvailable, true, deleteCmd)
 		return
 	}
 
@@ -309,11 +311,11 @@ func (app *application) pointHistory(ctx context.Context, b *bot.Bot, update *mo
 
 	history, err := app.models.Points.History(chatID, userID, historyLimit)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msgId, ErrNoHistoryFound, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrHistoryUnavailable, true, deleteCmd)
 		return
 	}
 	if history == nil {
-		sendMessage(ctx, b, chatID, msgId, ErrNoHistoryFound, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrHistoryUnavailable, true, deleteCmd)
 		return
 	}
 
@@ -348,7 +350,7 @@ func (app *application) gift(ctx context.Context, b *bot.Bot, update *models.Upd
 		// Parse the gift amount
 		parsedAmount, err := strconv.Atoi(parts[0])
 		if err != nil || parsedAmount <= 0 {
-			sendMessage(ctx, b, chatID, msgId, ErrInvalidGiftAmount, true, deleteCmd)
+			sendMessage(ctx, b, chatID, msgId, ErrInvalidPointsAmount, true, deleteCmd)
 			return
 		}
 		giftAmount = parsedAmount
@@ -363,7 +365,7 @@ func (app *application) gift(ctx context.Context, b *bot.Bot, update *models.Upd
 		// Convert userID to int64
 		parsedUserID, err := strconv.ParseInt(parts[0], 10, 64)
 		if err != nil {
-			sendMessage(ctx, b, chatID, msgId, ErrInvalidID, true, deleteCmd)
+			sendMessage(ctx, b, chatID, msgId, ErrInvalidUserID, true, deleteCmd)
 			return
 		}
 		receiverID = parsedUserID
@@ -371,63 +373,63 @@ func (app *application) gift(ctx context.Context, b *bot.Bot, update *models.Upd
 		// Convert gift amount to int
 		parsedAmount, err := strconv.Atoi(parts[1])
 		if err != nil || parsedAmount <= 0 {
-			sendMessage(ctx, b, chatID, msgId, ErrInvalidGiftAmount, true, deleteCmd)
+			sendMessage(ctx, b, chatID, msgId, ErrGiftProcessing, true, deleteCmd)
 			return
 		}
 		giftAmount = parsedAmount
 	}
 
 	if receiverID == update.Message.From.ID {
-		sendMessage(ctx, b, chatID, msgId, ErrGiftToSelf, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrSelfGift, true, deleteCmd)
 		return
 	}
 
 	me, err := b.GetMe(ctx)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msgId, ErrUserDoesNotExist, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrUnknownError, true, deleteCmd)
 		return
 	}
 
 	if receiverID == me.ID {
-		sendMessage(ctx, b, chatID, msgId, ErrGiftToBot, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrBotGift, true, deleteCmd)
 		return
 	}
 
 	// Ensure valid gift amount
 	if giftAmount <= 0 {
-		sendMessage(ctx, b, chatID, msgId, ErrGiftAmountZero, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrZeroGiftAmount, true, deleteCmd)
 		return
 	}
 
 	// User who is giving the gift
 	issuer, err := app.models.Users.Get(chatID, update.Message.From.ID)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msgId, ErrNoPointsYet, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrNoPointsEarned, true, deleteCmd)
 		return
 	}
 
 	// Check if gift issuer is valid or not
 	if issuer == nil {
-		sendMessage(ctx, b, chatID, msgId, ErrNoPointsYet, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrNoPointsEarned, true, deleteCmd)
 		return
 	}
 
 	// Check if issuer has enough points
 	if issuer.Points == 0 || issuer.Points < float64(giftAmount) {
-		sendMessage(ctx, b, chatID, msgId, ErrNoPointsToGift, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrNotEnoughPoints, true, deleteCmd)
 		return
 	}
 
 	// User who is going to receive the gift
 	receiver, err := app.models.Users.Get(chatID, receiverID)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msgId, ErrUserDoesNotExist, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrUserNotFound, true, deleteCmd)
 		return
 	}
 
 	// Check if receiver exists
 	if receiver == nil {
-		sendMessage(ctx, b, chatID, msgId, ErrUserDoesNotExist, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrUserNotFound, true, deleteCmd)
 		return
 	}
 
@@ -441,21 +443,21 @@ func (app *application) gift(ctx context.Context, b *bot.Bot, update *models.Upd
 	// Update total points of issuer
 	err = app.models.Users.Update(chatID, update.Message.From.ID, issuer.Points-float64(giftAmount))
 	if err != nil {
-		sendMessage(ctx, b, chatID, msgId, ErrGiftProcessingFail, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrUpdateUserFailed, true, deleteCmd)
 		return
 	}
 	p.UserID = update.Message.From.ID
 
 	err = app.models.Points.Insert(p)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msgId, ErrGiftProcessingFail, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrAddPointsFailed, true, deleteCmd)
 		return
 	}
 
 	// Update total points of receiver
 	err = app.models.Users.Update(chatID, receiverID, receiver.Points+float64(giftAmount))
 	if err != nil {
-		sendMessage(ctx, b, chatID, msgId, ErrGiftProcessingFail, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrUpdateUserFailed, true, deleteCmd)
 		return
 	}
 
@@ -465,7 +467,7 @@ func (app *application) gift(ctx context.Context, b *bot.Bot, update *models.Upd
 	// Add gift points to the user
 	err = app.models.Points.Insert(p)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msgId, ErrGiftProcessingFail, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrAddPointsFailed, true, deleteCmd)
 		return
 	}
 
@@ -479,7 +481,7 @@ func (app *application) gift(ctx context.Context, b *bot.Bot, update *models.Upd
 
 	err = app.models.Gifts.Insert(gft)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msgId, ErrGiftProcessingFail, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msgId, ErrAddPointsFailed, true, deleteCmd)
 		return
 	}
 
@@ -498,12 +500,12 @@ func (app *application) shop(ctx context.Context, b *bot.Bot, update *models.Upd
 
 	items, err := app.models.Shop.Items()
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrShopEmpty, true, deleteCmd)
 		return
 	}
 
 	if items == nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrNoItem, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrShopEmpty, true, deleteCmd)
 		return
 	}
 
@@ -530,19 +532,19 @@ func (app *application) buyItem(ctx context.Context, b *bot.Bot, update *models.
 
 	buyer, err := app.models.Users.Get(chatID, userID)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrUserNotFound, true, deleteCmd)
 		return
 	}
 
 	if buyer == nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrNoPointsYet, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrUserNotFound, true, deleteCmd)
 		return
 	}
 
 	// Convert itemID to int64
 	itemID, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrInvalidID, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrInvalidUserID, true, deleteCmd)
 		return
 	}
 
@@ -550,7 +552,7 @@ func (app *application) buyItem(ctx context.Context, b *bot.Bot, update *models.
 	// users can buy different type of boost simultaneously but not the same one
 	boost, err := app.models.Users.ActiveBoost(userID, chatID)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrNoBoost, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrBoostUnavailable, true, deleteCmd)
 		return
 	}
 
@@ -564,43 +566,43 @@ func (app *application) buyItem(ctx context.Context, b *bot.Bot, update *models.
 
 	itm, err := app.models.Shop.Get(itemID)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrNoItemFound, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrItemNotFound, true, deleteCmd)
 		return
 	}
 
 	if itm == nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrNoItemFound, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrItemNotFound, true, deleteCmd)
 		return
 	}
 
 	if buyer.Points < itm.Price {
-		sendMessage(ctx, b, chatID, msg.ID, ErrNotEnoughPoints, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrInsufficientBalance, true, deleteCmd)
 		return
 	}
 
 	//buy the item
 	err = app.models.Shop.Buy(userID, chatID, itm.ID, itm.Type, itm.Duration)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrBuyingItem, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrItemPurchaseFailed, true, deleteCmd)
 		return
 	}
 
 	//after successfully buying the item deduct price from the buyer
 	err = app.models.Users.Update(chatID, userID, buyer.Points-itm.Price)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrNotEnoughPoints, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrUpdateUserFailed, true, deleteCmd)
 		return
 	}
 
 	//get boost by item id
 	boost, err = app.models.Users.GetBoostByItem(userID, chatID, itm.ID)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrNoBoost, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrBoostUnavailable, true, deleteCmd)
 		return
 	}
 
 	if boost == nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrNoBoost, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrBoostUnavailable, true, deleteCmd)
 		return
 	}
 
@@ -615,7 +617,7 @@ func (app *application) buyItem(ctx context.Context, b *bot.Bot, update *models.
 	//update points history
 	err = app.models.Points.Insert(p)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrUnknown, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrAddPointsFailed, true, deleteCmd)
 		return
 	}
 
@@ -637,14 +639,133 @@ func (app *application) boost(ctx context.Context, b *bot.Bot, update *models.Up
 
 	boost, err := app.models.Users.ActiveBoost(userID, chatID)
 	if err != nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrNoBoost, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrBoostUnavailable, true, deleteCmd)
 		return
 	}
 
 	if boost == nil {
-		sendMessage(ctx, b, chatID, msg.ID, ErrNoBoost, true, deleteCmd)
+		sendMessage(ctx, b, chatID, msg.ID, ErrBoostUnavailable, true, deleteCmd)
 		return
 	}
 
 	sendMessage(ctx, b, chatID, msg.ID, formatBoost(boost), true, deleteCmd)
+}
+
+// seize users bonus points as penalty
+func (app *application) seize(ctx context.Context, b *bot.Bot, update *models.Update) {
+	chatID := update.Message.Chat.ID
+	msgId := update.Message.ID
+	var (
+		seizeAmount int
+		userID      int64
+	)
+	seize := strings.TrimSpace(strings.Replace(update.Message.Text, "/seize", "", 1))
+	parts := strings.Fields(seize)
+
+	// deleteCmd determines if commands should be deleted after execution
+	deleteCmd := viper.GetBool("bot.deleteCommand")
+
+	if update.Message.ReplyToMessage != nil {
+		// If user replied to a message, extract the user ID from the replied message
+		userID = update.Message.ReplyToMessage.From.ID
+
+		// Ensure the user provided a gift amount
+		if len(parts) != 1 {
+			msg := "Usage: Reply to a users message with `/seize amount`."
+			sendMessage(ctx, b, chatID, msgId, msg, true, deleteCmd)
+			return
+		}
+
+		// Parse the gift amount
+		parsedAmount, err := strconv.Atoi(parts[0])
+		if err != nil || parsedAmount <= 0 {
+			sendMessage(ctx, b, chatID, msgId, ErrInvalidSeizeAmount, true, deleteCmd)
+			return
+		}
+		seizeAmount = parsedAmount
+	} else {
+		if len(parts) != 2 {
+			msg := "Usage: `/seize user_id amount`."
+			sendMessage(ctx, b, chatID, msgId, msg, true, deleteCmd)
+			return
+		}
+
+		// Convert userID to int64
+		parsedUserID, err := strconv.ParseInt(parts[0], 10, 64)
+		if err != nil {
+			sendMessage(ctx, b, chatID, msgId, ErrInvalidUserID, true, deleteCmd)
+			return
+		}
+		userID = parsedUserID
+
+		// Convert gift amount to int
+		parsedAmount, err := strconv.Atoi(parts[1])
+		if err != nil || parsedAmount <= 0 {
+			sendMessage(ctx, b, chatID, msgId, ErrInvalidSeizeAmount, true, deleteCmd)
+			return
+		}
+		seizeAmount = parsedAmount
+	}
+
+	// Check if user is trying to deduct own points then skip
+	if update.Message.From.ID == userID {
+		sendMessage(ctx, b, chatID, msgId, ErrCannotDeductOwnPoints, true, deleteCmd)
+		return
+	}
+
+	//fetch the chat admin list
+	admins, err := getAdmins(ctx, b, chatID)
+	if err != nil {
+		sendMessage(ctx, b, chatID, msgId, ErrUnknownError, true, deleteCmd)
+		return
+	}
+
+	//check if one admin is trying to deduct points from another admin or owner
+	if isAdmin(userID, admins) {
+		sendMessage(ctx, b, chatID, msgId, ErrCannotDeductAdminPoints, true, deleteCmd)
+		return
+	}
+
+	//Check whose point we are going to seize exist or not
+	perpetrator, err := app.models.Users.Get(chatID, userID)
+	if err != nil {
+		sendMessage(ctx, b, chatID, msgId, ErrUserNotFound, true, deleteCmd)
+		return
+	}
+
+	if perpetrator == nil {
+		sendMessage(ctx, b, chatID, msgId, ErrUserNotFound, true, deleteCmd)
+		return
+	}
+
+	//check user whose points are we going to deduct have sufficient points or not
+	if perpetrator.Points == 0 || perpetrator.Points < float64(seizeAmount) {
+		sendMessage(ctx, b, chatID, msgId, ErrNotEnoughPoints, true, deleteCmd)
+		return
+	}
+
+	//deduct the points
+	err = app.models.Users.Update(chatID, userID, perpetrator.Points-float64(seizeAmount))
+	if err != nil {
+		sendMessage(ctx, b, chatID, msgId, ErrUpdateUserFailed, true, deleteCmd)
+		return
+	}
+
+	p := &database.Point{
+		ChatID: chatID,
+		UserID: userID,
+		Amount: float64(seizeAmount),
+		Source: pointSources[6],
+		Change: "loss",
+	}
+
+	//update the logs
+	err = app.models.Points.Insert(p)
+	if err != nil {
+		sendMessage(ctx, b, chatID, msgId, ErrAddPointsFailed, true, deleteCmd)
+		return
+	}
+
+	msg := fmt.Sprintf("%d points have been deducted from user ID: %d.", seizeAmount, userID)
+	sendMessage(ctx, b, chatID, msgId, msg, true, deleteCmd)
 }

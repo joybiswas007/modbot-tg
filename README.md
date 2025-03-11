@@ -15,6 +15,8 @@ This bot is still in development—features and functionality might change over 
 /gift userid amount - gift some of your bp to other users. Example: /gift 1234566 10
 or reply to a user whom you want to send the gift: /gift amount or /gift 10
 /shop - display all the items available in shop
+/seize userid amount - As penaly seize some points from users
+/seize amount - reply to users message whose points are we going to deduct
 /boost - display users available boost (User can buy only one boost at a time)
 /buy itemID - buy any item specified by item id
 /stats - Send `/stats` to view your own stats. Reply to another user's message with `/stats` to see their stats.
@@ -94,7 +96,7 @@ The more active a user is, the more points they earn, which can be used to redee
 - [ ] **Global Double Bonus Event** - A special event where all point earnings are doubled for a limited time.
 
 #### ⚠ Rule Enforcement
-- [ ] **Penalty Command** - Admins can deduct points from users who break group rules.
+- ~~[ ] **Penalty Command** - Admins can deduct points from users who break group rules.~~
 
 
 ## Contributing
